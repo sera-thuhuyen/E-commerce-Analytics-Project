@@ -1,0 +1,120 @@
+version: '3.8'
+
+x-airflow-common: &airflow-common
+  image: ${AIRFLOW_IMAGE_NAME}
+  environment:
+    - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+    - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+    - AIRFLOW__CORE__FERNET_KEY=fbAn1kvZGB86c_53mN684jS_b8S18bYI8wM8a6X2a_8=
+    - AIRFLOW__CONN_METADATA_DB=postgresql+psycopg2://airflow:airflow@postgres/airflow
+    - AIRFLOW__CORE__LOAD_EXAMPLES=False
+    - AIRFLOW__LOGGING__LOGGING_LEVEL=INFO
+    - AIRFLOW__CORE__DEFAULT_TIMEZONE=${AIRFLOW__CORE__DEFAULT_TIMEZONE}
+    # Đẩy các biến từ file .env vào môi trường Airflow để dbt/Spark sau này sử dụng
+    - SQLSERVER_HOST=${SQLSERVER_HOST}
+    - SQLSERVER_PORT=${SQLSERVER_PORT}
+    - SQLSERVER_DB=${SQLSERVER_DB}
+    - SQLSERVER_USER=${SQLSERVER_USER}
+    - SQLSERVER_PASSWORD=${SQLSERVER_PASSWORD}
+    - GCP_PROJECT_ID=${GCP_PROJECT_ID}
+    - GCS_BUCKET_NAME=${GCS_BUCKET_NAME}
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./airflow/logs:/opt/airflow/logs
+    - ./airflow/plugins:/opt/airflow/plugins
+    - ./spark:/opt/spark-project
+    - ./dbt:/opt/dbt-project
+    - ~/.google/credentials/:/opt/airflow/gcp/
+  user: "${AIRFLOW_UID}:0"
+  depends_on:
+    postgres:
+      condition: service_healthy
+  networks:
+    - data_pipeline_net
+
+services:
+  # 1. Cơ sở dữ liệu lưu trữ Metadata của Airflow
+  postgres:
+    image: postgres:13
+    environment:
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - data_pipeline_net
+
+  # 2. Giao diện Web của Airflow (Webserver)
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  # 3. Bộ lập lịch chạy ngầm của Airflow (Scheduler)
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    restart: always
+
+  # 4. Bước khởi tạo dữ liệu ban đầu cho Airflow
+  airflow-init:
+    <<: *airflow-common
+    command:
+      - bash
+      - -c
+      - |
+        airflow db migrate
+
+        airflow users create \
+          --username airflow \
+          --password airflow \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@example.com || true
+
+  # 5. Spark Master - Trung tâm điều phối tính toán
+
+  spark-master:
+    image: apache/spark:3.4.1
+    container_name: spark-master
+    hostname: spark-master
+    command: >
+      /opt/spark/bin/spark-class
+      org.apache.spark.deploy.master.Master
+    ports:
+    - "7077:7077"
+    - "8082:8080"
+    volumes:
+    - ./spark:/opt/spark-project
+
+  # 6. Spark Worker - Máy con trực tiếp xử lý dữ liệu nặng
+  spark-worker:
+    image: apache/spark:3.4.1
+    container_name: spark-worker
+    hostname: spark-worker
+    depends_on:
+    - spark-master
+    command: >
+      /opt/spark/bin/spark-class
+      org.apache.spark.deploy.worker.Worker
+      spark://spark-master:7077
+    volumes:
+    - ./spark:/opt/spark-project
+
+networks:
+  data_pipeline_net:
+    name: ${COMPOSE_PROJECT_NAME}_net

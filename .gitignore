@@ -24,3 +24,5 @@ data/
 # OS
 .DS_Store
 Thumbs.db
+
+postgres_data/postgres_data/

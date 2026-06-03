@@ -68,7 +68,14 @@ class TestDagIntegrity(unittest.TestCase):
     def test_no_cycles(self):
         """DAG không có circular dependency."""
         dag = self.dagbag.get_dag(dag_id='commerce_analytics_extraction_dag')
-        self.assertFalse(dag.test_cycle(), "DAG có circular dependency!")
+        # Airflow 2.x dùng topological_sort thay vì test_cycle
+        # Nếu có cycle, topological_sort sẽ raise exception
+        try:
+            dag.topological_sort()
+            cycle_detected = False
+        except Exception:
+            cycle_detected = True
+        self.assertFalse(cycle_detected, "DAG có circular dependency!")
 
 
 if __name__ == '__main__':

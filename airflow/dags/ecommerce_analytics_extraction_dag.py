@@ -1,5 +1,5 @@
 """
-commerce_analytics_extraction_dag.py
+ecommerce_analytics_extraction_dag.py
 =======================
 Phase 1b — Airflow DAG: Extract data from SQL Server → Parquet (via PySpark)
 
@@ -106,7 +106,7 @@ def extract_table(table_name: str, run_date: str, **context) -> dict:
     # ── Build SparkSession ──────────────────────────────────────────────────
     spark = (
         SparkSession.builder
-        .appName(f"commerce_analytics_extract_{table_name}_{run_date}")
+        .appName(f"ecommerce_analytics_extract_{table_name}_{run_date}")
         .master(SPARK_MASTER_URL)
         .config("spark.jars", JDBC_JAR_PATH)
         # Tối ưu cho extraction: không cần shuffle nhiều
@@ -260,7 +260,7 @@ def validate_extraction(**context) -> None:
 # ─── DAG Definition ───────────────────────────────────────────────────────────
 
 with DAG(
-    dag_id="commerce_analytics_extraction_dag",
+    dag_id="ecommerce_analytics_extraction_dag",
     default_args=default_args,
     description="Phase 1b: Extract 6 tables from SQL Server → Parquet via PySpark",
     schedule="0 1 * * *",  # Daily @ 01:00 UTC = 08:00 ICT

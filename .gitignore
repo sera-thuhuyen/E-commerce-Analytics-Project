@@ -7,6 +7,7 @@ keys/
 __pycache__/
 *.pyc
 .venv/
+venv/
 
 # dbt
 dbt/ecommerce_dbt/target/
@@ -16,6 +17,15 @@ dbt/ecommerce_dbt/logs/
 # Airflow
 airflow/logs/
 
+# Spark output
+spark/raw/
+
+# PostgreSQL data (runtime, không commit)
+postgres_data/
+
+# Logs
+logs/
+
 # Data files
 data/
 *.parquet
@@ -23,4 +33,4 @@ data/
 
 # OS
 .DS_Store
-Thumbs.db"postgres_data/" 
+Thumbs.db

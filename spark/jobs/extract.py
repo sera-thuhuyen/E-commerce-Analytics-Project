@@ -146,6 +146,10 @@ def save_parquet(df: DataFrame, table_name: str) -> str:
     # Thêm timestamp vào folder để track theo ngày chạy
     run_date = datetime.now().strftime("%Y-%m-%d")
     output_path = f"{OUTPUT_DIR}/{table_name}/run_date={run_date}"
+    # Xoá thư mục cũ trước khi ghi để tránh permission conflict trên Windows
+    import shutil, os
+    if os.path.exists(output_path):
+        shutil.rmtree(output_path)
 
     # coalesce(1) → gộp thành 1 file duy nhất
     # Với dataset nhỏ (~500K rows) thì 1 file là ổn
